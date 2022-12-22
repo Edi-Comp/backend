@@ -23,8 +23,14 @@ io.on("connection", (socket) => {
   socket.on("join-room", (roomId, username) => {
     console.log("joined room", roomId, "-", username);
     socket.join(roomId);
+
+    socket.emit("load-document","");
+
     socket.broadcast.to(roomId).emit("user-connected", username);
 
+    socket.on("send-message",(message)=>{
+        socket.broadcast.to(roomId).emit("recieve-message",message);
+    })
     socket.on("disconnect", () => {
       socket.broadcast.to(roomId).emit("user-disconnected", username);
     });
