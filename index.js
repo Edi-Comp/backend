@@ -18,7 +18,7 @@ const io = require("socket.io")(server, {
   },
 });
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 const File = require("./models/File");
 async function findFile(id) {
@@ -42,12 +42,16 @@ io.on("connection", (socket) => {
       const file=await findFile(roomId);
       if(file?.text){
         console.log("updating "+doc)
-        await File.updateOne({ roomid: roomId }, { text: doc });
+        await File.updateOne({ roomid: roomId }, { text: doc }).then(()=>{
+          socket.broadcast.to(roomId).emit("re-load-document", doc);
+        });
       }else{
         console.log("saving "+doc)
         await File.create({
           roomid:roomId,
           text:doc
+        }).then(()=>{
+          socket.broadcast.to(roomId).emit("re-load-document", doc);
         })
       }
     });
