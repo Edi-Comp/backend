@@ -39,26 +39,27 @@ io.on("connection", (socket) => {
     socket.broadcast.to(roomId).emit("user-connected", username);
 
     socket.on("save-document", async (doc) => {
-      const file=await findFile(roomId);
-      if(file?.text){
-        console.log("updating "+doc)
-        await File.updateOne({ roomid: roomId }, { text: doc }).then(()=>{
+      const file = await findFile(roomId);
+      if (file?.text) {
+        console.log("updating ");
+        await File.updateOne({ roomid: roomId }, { text: doc }).then(() => {
           socket.broadcast.to(roomId).emit("re-load-document", doc);
         });
-      }else{
-        console.log("saving "+doc)
+      } else {
+        console.log("saving ");
         await File.create({
-          roomid:roomId,
-          text:doc
-        }).then(()=>{
+          roomid: roomId,
+          text: doc,
+        }).then(() => {
           socket.broadcast.to(roomId).emit("re-load-document", doc);
-        })
+        });
       }
     });
 
     socket.on("send-message", (message) => {
       socket.broadcast.to(roomId).emit("recieve-message", message);
     });
+
     socket.on("disconnect", () => {
       socket.broadcast.to(roomId).emit("user-disconnected", username);
     });
