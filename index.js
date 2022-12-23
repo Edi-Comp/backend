@@ -27,16 +27,24 @@ async function findFile(id) {
   return file;
 }
 
+var rooms = {};
 io.on("connection", (socket) => {
   socket.on("join-room", async (roomId, username) => {
     // console.log("joined room", roomId, "-", username);
     socket.join(roomId);
+    rooms[username] = roomId;
+    const myroom = [];
+    Object.entries(rooms).forEach(([user, room]) => {
+      if (room === roomId) {
+        myroom.push(user);
+      }
+    });
 
     const file = await findFile(roomId);
 
     socket.emit("load-document", file?.text || "");
 
-    socket.broadcast.to(roomId).emit("user-connected", username);
+    io.to(roomId).emit("user-connected", username, myroom);
 
     socket.on("save-document", async (doc) => {
       const file = await findFile(roomId);
@@ -61,7 +69,14 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", () => {
-      socket.broadcast.to(roomId).emit("user-disconnected", username);
+      delete rooms[username];
+      const myroom=[]
+      Object.entries(rooms).forEach(([user, room]) => {
+        if (room === roomId) {
+          myroom.push(user);
+        }
+      });
+      io.to(roomId).emit("user-disconnected", username, myroom);
     });
   });
 });
