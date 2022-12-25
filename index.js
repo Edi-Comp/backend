@@ -30,10 +30,10 @@ async function findFile(id) {
 var rooms = {};
 io.on("connection", (socket) => {
   socket.on("join-room", async (roomId, username) => {
-    // console.log("joined room", roomId, "-", username);
     socket.join(roomId);
     rooms[username] = roomId;
     const myroom = [];
+    // Send data of people online
     Object.entries(rooms).forEach(([user, room]) => {
       if (room === roomId) {
         myroom.push(user);
@@ -42,40 +42,75 @@ io.on("connection", (socket) => {
 
     const file = await findFile(roomId);
 
+    // Load the data from the database when new user joins
     socket.emit("load-document", file?.text || "");
 
+    // Trigger connected user
     io.to(roomId).emit("user-connected", username, myroom);
 
+    // Save the document to database and reload for other online users who have just joined.
     socket.on("save-document", async (doc) => {
       const file = await findFile(roomId);
       if (file?.text) {
         console.log("updating ");
-        await File.updateOne({ roomid: roomId }, { text: doc }).then(() => {
-          socket.broadcast.to(roomId).emit("re-load-document", doc);
-        });
+        const history = {
+          text: doc,
+          timestamp: new Date(),
+        };
+        const lastHistory = file.history[file.history.length - 1];
+        const minDiff = (new Date() - lastHistory.timestamp) / (1000 * 60);
+        console.log(minDiff);
+        if (minDiff < 10) {
+          await File.updateOne(
+            { roomid: roomId },
+            { $set: { text: doc },}
+          ).then(() => {
+            socket.broadcast.to(roomId).emit("re-load-document", doc);
+          });
+        } else {
+          await File.updateOne(
+            { roomid: roomId },
+            {
+              $set: { text: doc },
+              $push: {
+                history,
+              },
+            }
+          ).then(() => {
+            socket.broadcast.to(roomId).emit("re-load-document", doc);
+          });
+        }
       } else {
         console.log("saving ");
+        const history = {
+          text: doc,
+          timestamp: new Date(),
+        };
         await File.create({
           roomid: roomId,
           text: doc,
+          history,
         }).then(() => {
           socket.broadcast.to(roomId).emit("re-load-document", doc);
         });
       }
     });
 
+    // Send Message who are online in socket
     socket.on("send-message", (message) => {
       socket.broadcast.to(roomId).emit("recieve-message", message);
     });
 
     socket.on("disconnect", () => {
       delete rooms[username];
-      const myroom=[]
+      const myroom = [];
+      // Remove users who disconnected and send to client side
       Object.entries(rooms).forEach(([user, room]) => {
         if (room === roomId) {
           myroom.push(user);
         }
       });
+      // Trigger disconnected user
       io.to(roomId).emit("user-disconnected", username, myroom);
     });
   });
