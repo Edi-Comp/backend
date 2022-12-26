@@ -28,6 +28,9 @@ async function findFile(id) {
 }
 
 var rooms = {};
+var logs; 
+var cursors={};
+
 io.on("connection", (socket) => {
   socket.on("join-room", async (roomId, username) => {
     socket.join(roomId);
@@ -45,6 +48,12 @@ io.on("connection", (socket) => {
     // Load the data from the database when new user joins
     socket.emit("load-document", file?.text || "");
 
+    // Get and Send the cursor index of users
+    socket.on("send-cursor",(user,index)=>{
+      cursors[user]=index;
+      socket.broadcast.to(roomId).emit("get-cursor",cursors);
+    })
+
     // Trigger connected user
     io.to(roomId).emit("user-connected", username, myroom);
 
@@ -60,7 +69,7 @@ io.on("connection", (socket) => {
         const lastHistory = file.history[file.history.length - 1];
         const minDiff = (new Date() - lastHistory.timestamp) / (1000 * 60);
         console.log(minDiff);
-        if (minDiff < 10) {
+        if (minDiff < 60) {
           await File.updateOne(
             { roomid: roomId },
             { $set: { text: doc },}
@@ -97,8 +106,8 @@ io.on("connection", (socket) => {
     });
 
     // Send Message who are online in socket
-    socket.on("send-message", (message) => {
-      socket.broadcast.to(roomId).emit("recieve-message", message);
+    socket.on("send-message", (message,index) => {
+      socket.broadcast.to(roomId).emit("recieve-message", message,index);
     });
 
     socket.on("disconnect", () => {
