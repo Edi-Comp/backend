@@ -112,6 +112,7 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
       delete rooms[username];
+      delete cursors[username];
       const myroom = [];
       // Remove users who disconnected and send to client side
       Object.entries(rooms).forEach(([user, room]) => {
